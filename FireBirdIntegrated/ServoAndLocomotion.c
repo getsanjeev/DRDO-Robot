@@ -2,11 +2,22 @@
 #include <avr/interrupt.h>
 #include <util/delay.h>
 
+
 /*
 	Servo1 is for Vertical
 	Servo2 is for Horizontal
+
+	Pin 39 -> Port J - 6
+	Pin 40 -> Port J - 7 
+	Pin 41 -> Port J - 4  
+	Pin 42 -> Port J - 5  
 */
 
+void gpio_pin_config(void)
+{
+	DDRJ = DDRJ & 0b00001111; //first 4 as input
+	PORTJ = PORTJ | 0b11110000; //internal pull-up enabled
+}
 
 unsigned long int ShaftCountLeft = 0; //to keep track of left position encoder 
 unsigned long int ShaftCountRight = 0; //to keep track of right position encoder
@@ -304,8 +315,10 @@ void init_devices()
  port_init();  //Initializes all the ports
  left_position_encoder_interrupt_init();
  right_position_encoder_interrupt_init();
+ gpio_pin_config();
  timer5_init();
  sei();   // Enables the global interrupt 
+
 }
 
 // Function for robot velocity control
@@ -372,125 +385,170 @@ void servo_3_free (void) //makes servo 3 free rotating
 */
 
 void move(int cell){
-	int cell_distance = 100; // 100 mm between two cells
+	int cell_distance = 200; // 100 mm between two cells
+	int cell_distance_diagonal = 280;
+	int wait_time = 100;
 	if (cell == 1){
-		soft_left_degrees(90); //Rotate (soft turn) by 90 degrees
+		left_degrees(45); //Rotate (soft turn) by 90 degrees
 		stop();
-		_delay_ms(500);
-		
-		soft_right_degrees(90);	//Rotate (soft turn) by 90 degrees
+		_delay_ms(wait_time);
+		forward_mm(cell_distance_diagonal); //Moves robot forward 100mm
 		stop();
-		_delay_ms(500);
 	}else if(cell == 2){
 		forward_mm(cell_distance); //Moves robot forward 100mm
 		stop();
-		_delay_ms(500);
 	}else if(cell == 3){
-		soft_right_degrees(90);	//Rotate (soft turn) by 90 degrees
+		right_degrees(45); //Rotate (soft turn) by 90 degrees
 		stop();
-		_delay_ms(500);
-
-		soft_left_degrees(90); //Rotate (soft turn) by 90 degrees
+		_delay_ms(wait_time);
+		forward_mm(cell_distance_diagonal); //Moves robot forward 100mm
 		stop();
-		_delay_ms(500);
 	}else if(cell == 4){
 		left_degrees(90); //Rotate robot left by 90 degrees
 		stop();
-		_delay_ms(500);
+		_delay_ms(wait_time);
 		forward_mm(cell_distance); //Moves robot forward 100mm
 		stop();
-		_delay_ms(500);
 	}else if(cell == 5){
 		stop();
-		_delay_ms(500);
 	}else if(cell == 6){
 		right_degrees(90); //Rotate robot left by 90 degrees
 		stop();
-		_delay_ms(500);
+		_delay_ms(wait_time);
 		forward_mm(cell_distance); //Moves robot forward 100mm
 		stop();
-		_delay_ms(500);
 	}else if(cell == 7){
-		right_degrees(180);
-		_delay_ms(500);
-
-		soft_right_degrees(90);	//Rotate (soft turn) by 90 degrees
+		left_degrees(135); //Rotate (soft turn) by 90 degrees
 		stop();
-		_delay_ms(500);
-
-		soft_left_degrees(90); //Rotate (soft turn) by 90 degrees
+		_delay_ms(wait_time);
+		forward_mm(cell_distance_diagonal); //Moves robot forward 100mm
 		stop();
-		_delay_ms(500);
 	}else if(cell == 8){
 		right_degrees(180);
-		_delay_ms(500);
+		_delay_ms(wait_time);
 		forward_mm(cell_distance);   //Moves robot backward 100mm
 		stop();			
-		_delay_ms(500);
 	}else if(cell == 9){
-		right_degrees(180);
-		_delay_ms(500);
-		soft_left_2_degrees(90);	//Rotate (soft turn) by 90 degrees
+		right_degrees(135); //Rotate (soft turn) by 90 degrees
 		stop();
-		_delay_ms(500);
-
-		soft_right_2_degrees(90); //Rotate (soft turn) by 90 degrees
+		_delay_ms(wait_time);
+		forward_mm(cell_distance_diagonal); //Moves robot forward 100mm
 		stop();
-		_delay_ms(500);
 	}
 }
 
 void move_servo_horizontal(char degrees){
 	  servo_2(degrees);
-	  _delay_ms(30);
-
-	 _delay_ms(1000);
 }
 
 void move_servo_vertical(char degrees){
  	
 	  servo_1(degrees);
-	  _delay_ms(1000);
-
-	 _delay_ms(1000);
 }
 
 void move_servo(char degrees){
-	unsigned char i = 0;
  	
 	  servo_2(degrees);
-	  _delay_ms(1000);
-
 	  servo_1(45);
-	  _delay_ms(1000);
 }
 
 default_move_all_servos(){
 	move_servo(0);
-	_delay_ms(2000);
 	move_servo(90);
-	_delay_ms(2000);
 	move_servo_vertical(90);
-	_delay_ms(2000);
 	move_servo(180);
-	_delay_ms(2000);
 }
 
+reset_servos(){
+	move_servo_horizontal(90);
+	move_servo_vertical(45);
+	_delay_ms(100);
+	servo_1_free();
+	servo_2_free();
+}
 
-
+void reset_allstop(){
+	stop();
+	move_servo_horizontal(90);
+	move_servo_vertical(45);
+	_delay_ms(100);
+	servo_1_free();
+	servo_2_free();
+}
 //Main Function
 
 int main(void)
 {
 	init_devices();
-	velocity (120, 120); //Set robot velocity here. Smaller the value lesser will be the velocity
-					 //Try different valuse between 0 to 255
-	move(2);
-	default_move_all_servos();
-	move(1);
-	default_move_all_servos();
-	move(7);
-	default_move_all_servos();
-	move(6);
-	default_move_all_servos();
+	velocity (120, 120);
+	unsigned char gpio_input_current[1];
+	gpio_input_current[0] = PINJ;
+	gpio_input_current[0] &= 0b11110000;
+
+while(1)
+	{
+		gpio_input_current[0] = (PINJ & 0b11110000);
+		if(gpio_input_current[0] == 0b00000000)
+		{
+			reset_allstop();
+		}
+		else if(gpio_input_current[0] == 0b00010000)
+		{
+			reset_servos();
+			move(1);
+		}
+		else if(gpio_input_current[0] == 0b00100000)
+		{	
+			reset_servos();
+			move(2);
+		}
+		else if(gpio_input_current[0] == 0b00110000)
+		{
+			reset_servos();
+			move(3);
+		}
+		else if(gpio_input_current[0] == 0b01000000)
+		{
+			reset_servos();
+			move(4);
+		}
+		else if(gpio_input_current[0] == 0b01010000)
+		{
+			reset_servos();
+			move(5);
+		}
+		else if(gpio_input_current[0] == 0b01100000)
+		{
+			reset_servos();
+			move(6);
+		}
+		else if(gpio_input_current[0] == 0b01110000)
+		{
+			reset_servos();
+			move(7);
+		}
+		else if(gpio_input_current[0] == 0b10000000)
+		{
+			reset_servos();
+			move(8);
+		}
+		else if(gpio_input_current[0] == 0b10010000)
+		{
+			reset_servos();
+			move(9);
+		}
+		else if(gpio_input_current[0] == 0b10100000)
+		{
+			move_servo_horizontal(0); //right camera movement.
+		}
+		else if(gpio_input_current[0] == 0b10110000)
+		{
+			move_servo_horizontal(90); //center camera movement.
+		}
+		else if(gpio_input_current[0] == 0b11000000)
+		{
+			move_servo_horizontal(180); //left camera movement.
+		}
+		//reset_allstop();
+	}
 }
